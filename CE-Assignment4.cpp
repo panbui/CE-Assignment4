@@ -15,11 +15,13 @@ public:  // private members are accessible/modifiable only inside this class
 	Mat previousPreviousFrame;   // the previous previous frame
 	Mat previousFrame;    // the previous frame
 	Mat currentFrame;
+	Mat referenceFrame;
 
 	int xROI;   // define the top-left corner of our
 	int yROI;   //     region-of-interest
 	int widthROI;
 	int heightROI;
+	int sum;
 	int mean;
 	int threshold;
 	int objectCount;
@@ -29,6 +31,7 @@ public:  // private members are accessible/modifiable only inside this class
 	MotionTracker() {   // our constructor;   an "initialization"
 		xROI = 150;   // define the top-left corner of our
 		yROI = 250;   //     region-of-interest
+		sum = 0;
 		mean = 0;
 		threshold = 55;
 		objectCount = 0;
@@ -40,12 +43,14 @@ public:  // private members are accessible/modifiable only inside this class
 
 	void feedNewframe(Mat frame) {
 		Mat diffPrevious;     // difference between the previous and current frame
+		Mat diffReference;
+		Mat grayDiffReference;
 		Mat grayDiffPrevious;
 
 		int x, y;
-		int sum;
 
 		if (firstTime) {
+			frame.copyTo(referenceFrame);
 			frame.copyTo(currentFrame);
 			frame.copyTo(previousFrame);
 			frame.copyTo(previousPreviousFrame);
@@ -56,17 +61,19 @@ public:  // private members are accessible/modifiable only inside this class
 		currentFrame.copyTo(previousFrame);
 		frame.copyTo(currentFrame);
 
+		absdiff(referenceFrame, frame, diffReference);
 		// get the diff between the current frame and the second frame before it
 		absdiff(previousPreviousFrame, frame, diffPrevious);
 		// convert the color differences into gray differences
 		// now, each pixel is in the range 0..255
+		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
 		cvtColor(diffPrevious, grayDiffPrevious, CV_BGR2GRAY);
 
 		for (y = yROI; y < yROI + heightROI; y++) { // visit pixels row-by-row
 			// inside each row, visit pixels from left to right
 			for (x = xROI; x < xROI + widthROI; x++) {
 				// weight of the pixel  x,y
-				sum += grayDiffPrevious.at<unsigned char>(y,x);
+				sum += grayDiffReference.at<unsigned char>(y,x);
 			}
 		}
 
@@ -145,10 +152,10 @@ int main(  int argc, char** argv ) {
 
 		tracker.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
 
-		flip(graph, graph, 0);
 		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, 255), Scalar(0,0,0), 2);
 		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, tracker.mean), Scalar(0,255,0), 2);
 
+		flip(graph, graph, 0);
 
 		imshow("Graph", graph);
 		imshow("Raw Image", frame);  // display the frame in the window
