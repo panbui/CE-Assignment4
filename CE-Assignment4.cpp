@@ -16,24 +16,27 @@ public:  // private members are accessible/modifiable only inside this class
 	Mat previousFrame;    // the previous frame
 	Mat currentFrame;
 	Mat referenceFrame;
+	Mat diffReference;
 
 	int xROI;   // define the top-left corner of our
 	int yROI;   //     region-of-interest
 	int widthROI;
 	int heightROI;
-	int sum;
 	int mean;
+	int sumMean;
+	int averageMean;
 	int threshold;
 	int objectCount;
 	bool firstTime;
 	bool below;
 
 	MotionTracker() {   // our constructor;   an "initialization"
-		xROI = 150;   // define the top-left corner of our
-		yROI = 250;   //     region-of-interest
-		sum = 0;
+		xROI = 0;   // define the top-left corner of our
+		yROI = 0;   //     region-of-interest
 		mean = 0;
-		threshold = 55;
+		sumMean = 0;
+		averageMean = 0;
+		threshold = 0;
 		objectCount = 0;
 		widthROI = 100;
 		heightROI = 100;
@@ -41,15 +44,14 @@ public:  // private members are accessible/modifiable only inside this class
 		below = true;
 	}
 
-	void feedNewframe(Mat frame) {
+	void feedNewframe(Mat frame, int frameCount) {
 		Mat diffPrevious;     // difference between the previous and current frame
-		Mat diffReference;
 		Mat grayDiffReference;
 		Mat grayDiffPrevious;
-		sum = 0;
-
 
 		int x, y;
+		int sum = 0;
+		float thresholdFactor = 1.5;
 
 		if (firstTime) {
 			frame.copyTo(referenceFrame);
@@ -63,25 +65,29 @@ public:  // private members are accessible/modifiable only inside this class
 		currentFrame.copyTo(previousFrame);
 		frame.copyTo(currentFrame);
 
-//		absdiff(referenceFrame, frame, diffReference);
+		absdiff(referenceFrame, frame, diffReference);
 		// get the diff between the current frame and the second frame before it
 		absdiff(previousPreviousFrame, frame, diffPrevious);
 		// convert the color differences into gray differences
 		// now, each pixel is in the range 0..255
-//		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
+		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
 		cvtColor(diffPrevious, grayDiffPrevious, CV_BGR2GRAY);
 
 		for (y = yROI; y < yROI + heightROI; y++) { // visit pixels row-by-row
 			// inside each row, visit pixels from left to right
 			for (x = xROI; x < xROI + widthROI; x++) {
 				// weight of the pixel  x,y
-				sum += grayDiffPrevious.at<unsigned char>(y,x);
+				sum += grayDiffReference.at<unsigned char>(y,x);
 			}
 		}
 
 		mean = sum / (widthROI * heightROI);
 
-		printf ("mean = %d \n", mean);
+
+			sumMean += mean;
+			averageMean = sumMean / (frameCount + 1);
+			threshold = (int) 5 + (averageMean * thresholdFactor);
+
 	}
 
 	void countObject() {
@@ -123,7 +129,7 @@ public:  // private members are accessible/modifiable only inside this class
 int main(  int argc, char** argv ) {
 
 	MotionTracker tracker;  // our MotionTracker object is mTrack1
-	tracker.setROI(100,200,150,150 );   // set mTrack1's region-of-interest
+	tracker.setROI(230,350,100,35);   // set mTrack1's region-of-interest
 
 	Mat drawFrame;   // where we visualize
 	Mat frame;   // Mat is a 2-D "matrix" of numbers, containing our image data
@@ -131,14 +137,17 @@ int main(  int argc, char** argv ) {
 
 	int frameCount;   // counts the frames that are read from the camera
 
-	VideoCapture cap(0);   // live camera
+	char video[50] = "road.mp4";
+
+	VideoCapture cap(video);   // live camera
 	if (!cap.isOpened()) {  // check if we succeeded in opening the camera
 		return -1;  // quit the program if we did not succeed
 	}
 
-	namedWindow("Raw Image",CV_WINDOW_NORMAL);  // create a window
+	namedWindow("Raw Image", CV_WINDOW_NORMAL);  // create a window
 	namedWindow("Draw Frame", CV_WINDOW_NORMAL);
 	namedWindow("Graph", CV_WINDOW_NORMAL);
+	namedWindow("Difference Reference", CV_WINDOW_NORMAL);
 
 	for (frameCount = 0; frameCount < 100000000; frameCount++) {
 		if (frameCount % 100 == 0) {  // every 100 frames, print a message
@@ -146,11 +155,11 @@ int main(  int argc, char** argv ) {
 		}
 
 		cap >> frame;  // from the first camera
-		flip(frame,frame,1);  // flip the frame horizontally
+//		flip(frame,frame,1);  // flip the frame horizontally
 
-		tracker.feedNewframe(frame);
+		tracker.feedNewframe(frame, frameCount);
 		tracker.countObject();
-//		printf("Object = %d \n", tracker.objectCount);
+		printf("Object = %d \n", tracker.objectCount);
 
 		frame.copyTo(drawFrame);  // create our "drawing" frame
 
@@ -158,15 +167,16 @@ int main(  int argc, char** argv ) {
 
 		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, 255), Scalar(0,0,0), 2);
 		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, tracker.mean), Scalar(0,255,0), 2);
+		circle(graph, Point(frameCount % 300, tracker.threshold), 1, Scalar(0,0,255),1);
 
 		flip(graph, graph, 0);
 
 		imshow("Graph", graph);
 		imshow("Raw Image", frame);  // display the frame in the window
 		imshow("Draw Frame", drawFrame);
+		imshow("Difference Reference", tracker.diffReference);
 
 		flip(graph, graph, 0);
-
 
 		if (waitKey(20) >= 0) {   // wait 20ms and check if a key was pressed
 			break;   // if a key was pressed, exit the for loop
