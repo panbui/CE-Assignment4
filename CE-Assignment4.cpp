@@ -46,6 +46,8 @@ public:  // private members are accessible/modifiable only inside this class
 		Mat diffReference;
 		Mat grayDiffReference;
 		Mat grayDiffPrevious;
+		sum = 0;
+
 
 		int x, y;
 
@@ -61,23 +63,25 @@ public:  // private members are accessible/modifiable only inside this class
 		currentFrame.copyTo(previousFrame);
 		frame.copyTo(currentFrame);
 
-		absdiff(referenceFrame, frame, diffReference);
+//		absdiff(referenceFrame, frame, diffReference);
 		// get the diff between the current frame and the second frame before it
 		absdiff(previousPreviousFrame, frame, diffPrevious);
 		// convert the color differences into gray differences
 		// now, each pixel is in the range 0..255
-		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
+//		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
 		cvtColor(diffPrevious, grayDiffPrevious, CV_BGR2GRAY);
 
 		for (y = yROI; y < yROI + heightROI; y++) { // visit pixels row-by-row
 			// inside each row, visit pixels from left to right
 			for (x = xROI; x < xROI + widthROI; x++) {
 				// weight of the pixel  x,y
-				sum += grayDiffReference.at<unsigned char>(y,x);
+				sum += grayDiffPrevious.at<unsigned char>(y,x);
 			}
 		}
 
 		mean = sum / (widthROI * heightROI);
+
+		printf ("mean = %d \n", mean);
 	}
 
 	void countObject() {
@@ -146,7 +150,7 @@ int main(  int argc, char** argv ) {
 
 		tracker.feedNewframe(frame);
 		tracker.countObject();
-		printf("Object = %d \n", tracker.objectCount);
+//		printf("Object = %d \n", tracker.objectCount);
 
 		frame.copyTo(drawFrame);  // create our "drawing" frame
 
