@@ -51,7 +51,7 @@ public:  // private members are accessible/modifiable only inside this class
 
 		int x, y;
 		int sum = 0;
-		float thresholdFactor = 1.5;
+		float thresholdFactor = 1.25;
 
 		if (firstTime) {
 			frame.copyTo(referenceFrame);
@@ -134,13 +134,13 @@ public:  // private members are accessible/modifiable only inside this class
 int main(  int argc, char** argv ) {
 
 	MotionTracker lane1;
-	lane1.setROI(100,350,120,50);
+	lane1.setROI(100,350,120,70);
 
 	MotionTracker lane2;  // our MotionTracker object is mTrack1
-	lane2.setROI(230,350,100,50);   // set mTrack1's region-of-interest
+	lane2.setROI(230,350,100,70);   // set mTrack1's region-of-interest
 
 	MotionTracker lane3;  // our MotionTracker object is mTrack1
-	lane3.setROI(350,350,100,50);   // set mTrack1's region-of-interest
+	lane3.setROI(350,350,110,70);   // set mTrack1's region-of-interest
 
 	Mat drawFrame;   // where we visualize
 	Mat frame;   // Mat is a 2-D "matrix" of numbers, containing our image data
@@ -157,7 +157,6 @@ int main(  int argc, char** argv ) {
 
 	namedWindow("Raw Image", CV_WINDOW_NORMAL);  // create a window
 	namedWindow("Graph", CV_WINDOW_NORMAL);
-	namedWindow("Difference Reference", CV_WINDOW_NORMAL);
 	namedWindow("Draw Frame", CV_WINDOW_NORMAL);
 
 	for (frameCount = 0; frameCount < 100000000; frameCount++) {
@@ -193,7 +192,6 @@ int main(  int argc, char** argv ) {
 
 		imshow("Graph", graph);
 		imshow("Raw Image", frame);  // display the frame in the window
-		imshow("Difference Reference", lane1.diffReference);
 		imshow("Draw Frame", drawFrame);
 
 		flip(graph, graph, 0);
