@@ -123,17 +123,28 @@ public:  // private members are accessible/modifiable only inside this class
 		rectangle( frame, Rect(xROI,yROI,widthROI,heightROI), color, 2);
 	}
 
+	void graph(Mat graph, int frameCount, int bottom, int top, int thresline) {
+		line(graph, Point(frameCount % 300, bottom), Point(frameCount % 300, 768), Scalar(0,0,0), 2);
+		line(graph, Point(frameCount % 300, bottom), Point(frameCount % 300, top), Scalar(0,255,0), 2);
+		circle(graph, Point(frameCount % 300, thresline), 1, Scalar(0,0,255),3);
+	}
 };
 
 
 int main(  int argc, char** argv ) {
 
-	MotionTracker tracker;  // our MotionTracker object is mTrack1
-	tracker.setROI(230,350,100,35);   // set mTrack1's region-of-interest
+	MotionTracker lane1;
+	lane1.setROI(100,350,120,50);
+
+	MotionTracker lane2;  // our MotionTracker object is mTrack1
+	lane2.setROI(230,350,100,50);   // set mTrack1's region-of-interest
+
+	MotionTracker lane3;  // our MotionTracker object is mTrack1
+	lane3.setROI(350,350,100,50);   // set mTrack1's region-of-interest
 
 	Mat drawFrame;   // where we visualize
 	Mat frame;   // Mat is a 2-D "matrix" of numbers, containing our image data
-	Mat graph = Mat(256, 300, CV_8UC3);
+	Mat graph = Mat(768, 300, CV_8UC3);
 
 	int frameCount;   // counts the frames that are read from the camera
 
@@ -145,9 +156,9 @@ int main(  int argc, char** argv ) {
 	}
 
 	namedWindow("Raw Image", CV_WINDOW_NORMAL);  // create a window
-	namedWindow("Draw Frame", CV_WINDOW_NORMAL);
 	namedWindow("Graph", CV_WINDOW_NORMAL);
 	namedWindow("Difference Reference", CV_WINDOW_NORMAL);
+	namedWindow("Draw Frame", CV_WINDOW_NORMAL);
 
 	for (frameCount = 0; frameCount < 100000000; frameCount++) {
 		if (frameCount % 100 == 0) {  // every 100 frames, print a message
@@ -155,26 +166,35 @@ int main(  int argc, char** argv ) {
 		}
 
 		cap >> frame;  // from the first camera
-//		flip(frame,frame,1);  // flip the frame horizontally
 
-		tracker.feedNewframe(frame, frameCount);
-		tracker.countObject();
-		printf("Object = %d \n", tracker.objectCount);
+		lane1.feedNewframe(frame, frameCount);
+		lane1.countObject();
+		printf("Lane 1 = %d \n", lane1.objectCount);
+
+		lane2.feedNewframe(frame, frameCount);
+		lane2.countObject();
+		printf("Lane 2 = %d \n", lane2.objectCount);
+
+		lane3.feedNewframe(frame, frameCount);
+		lane3.countObject();
+		printf("Lane 3 = %d \n", lane3.objectCount);
 
 		frame.copyTo(drawFrame);  // create our "drawing" frame
 
-		tracker.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
+		lane1.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
+		lane2.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
+		lane3.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
 
-		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, 255), Scalar(0,0,0), 2);
-		line(graph, Point(frameCount % 300, 0), Point(frameCount % 300, tracker.mean), Scalar(0,255,0), 2);
-		circle(graph, Point(frameCount % 300, tracker.threshold), 1, Scalar(0,0,255),1);
+		lane1.graph(graph, frameCount, 0, lane1.mean, lane1.threshold);
+		lane2.graph(graph, frameCount, 256, lane2.mean + 256, lane2.threshold + 256);
+		lane3.graph(graph, frameCount, 512, lane3.mean + 512, lane3.threshold + 512);
 
 		flip(graph, graph, 0);
 
 		imshow("Graph", graph);
 		imshow("Raw Image", frame);  // display the frame in the window
+		imshow("Difference Reference", lane1.diffReference);
 		imshow("Draw Frame", drawFrame);
-		imshow("Difference Reference", tracker.diffReference);
 
 		flip(graph, graph, 0);
 
