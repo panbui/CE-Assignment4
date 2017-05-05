@@ -123,41 +123,47 @@ public:
 
 		Mat image;
 
+			// Specify the region to crop image
 		Rect ROI;
 		ROI.x = xROI;
-		ROI.y = yROI - 50;
+		ROI.y = yROI - 50;	// -50 to ensure the vehicle shape is within the image
 		ROI.width = widthROI;
 		ROI.height = heightROI;
 
+			// For displaying counting
 		string laneNo = "Lane " + intToString(lane);
 
+			// Condition to count and display objects
 		if (below == true && mean > threshold) {
 			objectCount ++;
+			below = false;
 
+				// Save frame as a jpg file
 		    sprintf(fileNameImage, "%d-%03d.jpg", lane, objectCount);
 		    imwrite(fileNameImage, frame);
 
+		    	// Crop image within the region above
 		    image = imread(fileNameImage, 1);
 		    crop = image(ROI);
 
+		    	// Replace the frame image by the cropped image
 		    sprintf(fileNameImage, "%d-%03d.jpg", lane, objectCount);
 		    imwrite(fileNameImage, crop);
 
+		    	// Show image in separate window
 			namedWindow(laneNo, CV_WINDOW_NORMAL);
 			imshow(laneNo, crop);
 
 			file = fopen("objects.html", "a");
 			fprintf(file, "<img scr = %s>", fileNameImage);
 			fclose(file);
-
-			below = false;
 		}
-
 		if (below == false && mean < threshold) {
 			below = true;
 		}
 	}
 
+		// Function allows users to customise the ROI
 	void setROI(int new_xROI, int new_yROI, int new_widthROI, int new_heightROI) {
 		xROI = new_xROI;
 		yROI = new_yROI;
@@ -165,17 +171,24 @@ public:
 		heightROI = new_heightROI;
 	}
 
+		// Function to draw the ROI on the window
 	void drawROI(Mat frame, Scalar color) {
 		rectangle( frame, Rect(xROI,yROI,widthROI,heightROI), color, 2);
 	}
 
+		// Graph the signal
 	void graph(Mat graph, int frameCount, int bottom, int top, int thresline) {
+			// Clear the graph with color black
 		line(graph, Point(frameCount % 300, bottom), Point(frameCount % 300, 768), Scalar(0,0,0), 2);
+			// Plot the signal graph with position input from the user
 		line(graph, Point(frameCount % 300, bottom), Point(frameCount % 300, top), Scalar(0,255,0), 2);
+			// Red threshold line
 		circle(graph, Point(frameCount % 300, thresline), 1, Scalar(0,0,255),3);
 	}
 
+		// Display counting numbers as text on screen
 	void count(Mat frame, int lane, int x, int y) {
+			// Example: "Lane 1: 10"
 		string status = "Lane " + intToString(lane) + ": " + intToString(objectCount);
 		putText(frame, status, Point(x,y), FONT_HERSHEY_PLAIN, 2, Scalar(0,255,255), 2, 6);
 	}
@@ -184,44 +197,50 @@ public:
 
 
 int main(  int argc, char** argv ) {
-
+		// Declare 3 ROIs for 3 lanes from the video
 	MotionTracker lane1;
 	lane1.setROI(110,350,100,70);
+	MotionTracker lane2;
+	lane2.setROI(240,350,80,70);
+	MotionTracker lane3;
+	lane3.setROI(360,350,90,70);
 
-	MotionTracker lane2;  // our MotionTracker object is mTrack1
-	lane2.setROI(240,350,80,70);   // set mTrack1's region-of-interest
-
-	MotionTracker lane3;  // our MotionTracker object is mTrack1
-	lane3.setROI(360,350,90,70);   // set mTrack1's region-of-interest
-
-	Mat drawFrame;   // where we visualize
-	Mat frame;   // Mat is a 2-D "matrix" of numbers, containing our image data
-	Mat graph = Mat(768, 300, CV_8UC3);
+		// Declare necessary Mat objects
+	Mat drawFrame;   					// The main frame with video and customised objects
+	Mat frame;
+	Mat graph = Mat(768, 300, CV_8UC3);	// 768 x 300 Mat object for graph
+										// The signal value for each ROI is within [0..255], and we need to graph for 3 ROIs,
+										// so 256 x 3 = 768, hence the height of the Mat
 
 	int frameCount;   // counts the frames that are read from the camera
 
 	char video[50] = "road.mp4";
 
-	VideoCapture cap(video);   // live camera
-	if (!cap.isOpened()) {  // check if we succeeded in opening the camera
-		return -1;  // quit the program if we did not succeed
+	VideoCapture cap(video);   	// Open video
+	if (!cap.isOpened()) {  	// Check if we succeeded in opening the video
+		return -1;  			// quit the program if we did not succeed
 	}
 
+		// Open and initialise the HTML file
 	FILE *fileImg;
 	fileImg = fopen("objects.html", "w");
 	fprintf(fileImg, "<html>\n <body> \n");
 	fclose(fileImg);
 
+		// Create 2 windows for main video and graph
 	namedWindow("Graph", CV_WINDOW_NORMAL);
 	namedWindow("Main Video", CV_WINDOW_NORMAL);
 
 	for (frameCount = 0; frameCount < 100000000; frameCount++) {
-		if (frameCount % 100 == 0) {  // every 100 frames, print a message
+			// Inform the user every 100 frames
+		if (frameCount % 100 == 0) {
 			printf("frameCount = %d \n", frameCount);
 		}
 
-		cap >> frame;  // from the first camera
+			// Capture frame to Mat object
+		cap >> frame;
 
+			// Count objects passing through 3 ROIsin each frame, and print on console the counting number
 		lane1.feedNewframe(frame, frameCount);
 		lane1.countObject(frame, 1, fileImg);
 		printf("Lane 1 = %d \n", lane1.objectCount);
@@ -234,25 +253,32 @@ int main(  int argc, char** argv ) {
 		lane3.countObject(frame, 3, fileImg);
 		printf("Lane 3 = %d \n", lane3.objectCount);
 
-		frame.copyTo(drawFrame);  // create our "drawing" frame
+			// Create a "drawing" frame
+		frame.copyTo(drawFrame);
 
-		lane1.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
-		lane2.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
-		lane3.drawROI(drawFrame,Scalar(0,0,255));  // draw mTrack1's ROI
+			// Draw ROI for each lane
+		lane1.drawROI(drawFrame,Scalar(0,0,255));
+		lane2.drawROI(drawFrame,Scalar(0,0,255));
+		lane3.drawROI(drawFrame,Scalar(0,0,255));
 
+			// Graph signal for each ROI
 		lane1.graph(graph, frameCount, 0, lane1.mean, lane1.threshold);
 		lane2.graph(graph, frameCount, 256, lane2.mean + 256, lane2.threshold + 256);
 		lane3.graph(graph, frameCount, 512, lane3.mean + 512, lane3.threshold + 512);
 
+			// Display counting number on screen for each ROI
 		lane1.count(drawFrame, 1, 10, 60);
 		lane2.count(drawFrame, 2, 230, 60);
 		lane3.count(drawFrame, 3, 460, 60);
 
+			// Flip the graph upside down
 		flip(graph, graph, 0);
 
+			// Show in windows
 		imshow("Main Video", drawFrame);
 		imshow("Graph", graph);
 
+			// Flip the graph upside down again
 		flip(graph, graph, 0);
 
 		if (waitKey(20) >= 0) {   // wait 20ms and check if a key was pressed
