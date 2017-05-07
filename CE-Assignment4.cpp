@@ -1,15 +1,19 @@
-
 //============================================================================
-// Name        : EEET2448 COMPUTING ENGINEERING 2017A - ASSIGNMENT 3
+// Name        : EEET2448 COMPUTING ENGINEERING 2017A - ASSIGNMENT 4
 // Author      : - Bui Khac Phuong Uyen _ s3618720 : Image cropping and HTML
 //				 - Tran Thi Hong Phuong _ s3623386 : Object counting
 // Copyright   : Your copyright notice
-// Description : This program counts the number of vehicles from a video. Each time a vehicle passes by, its image is displayed on a separate window.
-//				Then all images are stored in an HTML file.
+// Description : This program counts the number of vehicles from a video.
+//	Each time a vehicle passes by, its image is displayed on a separate window.
+//	Then all images are stored in an HTML file.
 //
 // During the process, we encountered some difficulties such as:
-// 		- Cropping the frame under the condition so that the vehicle shape is fully (or mostly) within the image.
+// 		- Cropping the frame under the condition so that the vehicle shape is
+//			fully (or mostly) within the image.
+//		- This code works well with objects that pass by quickly since the threshold
+//			adapts slowly
 //		- Some difficulties with writing to HTML file in a function under a class.
+// Reference	: EEET2448 COMPUTING ENGINEERING Week 8 & 10 codes - Mr. Vlad Mariano
 //============================================================================
 
 #include <cv.h>   // all the OpenCV headers, which links to all the libraries
@@ -25,7 +29,7 @@
 using namespace cv;   // a "shortcut" for directly using OpenCV functions
 using namespace std;
 
-	// A function to convert from interger to string data type
+	// A function to convert from integer to string data type
 string intToString(int number) {
 	ostringstream temp;
 	temp << number;
@@ -35,9 +39,6 @@ string intToString(int number) {
 	// Declaration of our main class
 class MotionTracker {
 public:
-	Mat previousPreviousFrame;  // the previous previous frame
-	Mat previousFrame;    		// the previous frame
-	Mat currentFrame;			// the current frame
 	Mat referenceFrame;			// the first frame of the video
 	Mat diffReference;
 	Mat crop;					// the image cropped from the frame
@@ -72,34 +73,31 @@ public:
 	}
 
 		// Process every frame
-	void feedNewframe(Mat frame, int frameCount) {
-		Mat diffPrevious;     // difference between the previous and current frame
-		Mat grayDiffReference;
-		Mat grayDiffPrevious;
+	void feedNewframe(Mat frame, int lane, int frameCount, VideoCapture cap) {
+		Mat grayDiffReference; // difference in brightness - gray scale
+		FILE *fileImg; //define html destination file
 
 		int x, y;
 		int sum = 0;
 		float thresholdFactor = 1.25;
+		float vidTime; //the time-stamp of captured frame
 
-			// The first capture is slightly different from the following capture, so we have a specific condition for it
+			// The first capture is slightly different from the following capture,
+			//	so we have a specific condition for it
 		if (firstTime) {
 			frame.copyTo(referenceFrame);
-			frame.copyTo(currentFrame);
-			frame.copyTo(previousFrame);
-			frame.copyTo(previousPreviousFrame);
+			fileImg = fopen("objects.html", "w"); // open file as new to write
+			fprintf(fileImg, "<html>\n <body> \n");
+			fprintf(fileImg, "Threshold factor = %0.2f<br>\n", thresholdFactor);
+			fclose(fileImg);
 			firstTime = false;
 		}
-
-			// After the first frame, all the following frames are processed as usual
-		previousFrame.copyTo(previousPreviousFrame);
-		currentFrame.copyTo(previousFrame);
-		frame.copyTo(currentFrame);
 
 			// Get the diff between the current frame and the first frame
 		absdiff(referenceFrame, frame, diffReference);
 
 			// Convert the color differences into gray differences
-		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY);
+		cvtColor(diffReference, grayDiffReference, CV_BGR2GRAY, 1);
 
 			// Visit pixels row-by-row, column-by-column to calculate the weight of each pixel
 		for (y = yROI; y < yROI + heightROI; y++) {
@@ -115,53 +113,56 @@ public:
 		sumMean += mean;
 		averageMean = sumMean / (frameCount + 1);
 		threshold = (int) 5 + (averageMean * thresholdFactor);
-	}
 
-		// Function to count objects
-	void countObject(Mat frame, int lane, FILE * file) {
 		char fileNameImage[100];
 
 		Mat image;
-
-			// Specify the region to crop image
+				// Specify the region to crop image
 		Rect ROI;
 		ROI.x = xROI;
 		ROI.y = yROI - 50;	// -50 to ensure the vehicle shape is within the image
 		ROI.width = widthROI;
 		ROI.height = heightROI;
-
-			// For displaying counting
+				// For displaying counting
 		string laneNo = "Lane " + intToString(lane);
-
-			// Condition to count and display objects
+				// Condition to count and display objects
 		if (below == true && mean > threshold) {
 			objectCount ++;
 			below = false;
-
-				// Save frame as a jpg file
+					// Save frame as a jpg file
 		    sprintf(fileNameImage, "%d-%03d.jpg", lane, objectCount);
 		    imwrite(fileNameImage, frame);
-
-		    	// Crop image within the region above
+			    	// Crop image within the region above
 		    image = imread(fileNameImage, 1);
 		    crop = image(ROI);
-
-		    	// Replace the frame image by the cropped image
+			    	// Replace the frame image by the cropped image
 		    sprintf(fileNameImage, "%d-%03d.jpg", lane, objectCount);
 		    imwrite(fileNameImage, crop);
-
-		    	// Show image in separate window
+			    	// Show image in separate window
 			namedWindow(laneNo, CV_WINDOW_NORMAL);
 			imshow(laneNo, crop);
 
-			file = fopen("objects.html", "a");
-			fprintf(file, "<img scr = %s>", fileNameImage);
-			fclose(file);
-		}
+			//Calculate the time when object is detected
+			vidTime =  cap.get(CV_CAP_PROP_POS_MSEC)/1000;
+
+					// open html file to append
+			fileImg = fopen("objects.html", "a");
+					// write to file
+			fprintf(fileImg, "<img src=%s> Threshold = %d, "
+				"Lane %d Count = %d, Time detected: %0.2f, "
+				"frameCount = %d<br>\n",
+				fileNameImage, threshold, lane,
+				objectCount, vidTime, frameCount);
+
+			fclose(fileImg); // then close when finish
+			}
 		if (below == false && mean < threshold) {
+			// waiting for the object to pass to count a new one
 			below = true;
 		}
 	}
+
+		// Function to count objects
 
 		// Function allows users to customise the ROI
 	void setROI(int new_xROI, int new_yROI, int new_widthROI, int new_heightROI) {
@@ -183,7 +184,7 @@ public:
 			// Plot the signal graph with position input from the user
 		line(graph, Point(frameCount % 300, bottom), Point(frameCount % 300, top), Scalar(0,255,0), 2);
 			// Red threshold line
-		circle(graph, Point(frameCount % 300, thresline), 1, Scalar(0,0,255),3);
+		circle(graph, Point(frameCount % 300, thresline), 1, Scalar(0,0,255), 3);
 	}
 
 		// Display counting numbers as text on screen
@@ -221,12 +222,6 @@ int main(  int argc, char** argv ) {
 		return -1;  			// quit the program if we did not succeed
 	}
 
-		// Open and initialise the HTML file
-	FILE *fileImg;
-	fileImg = fopen("objects.html", "w");
-	fprintf(fileImg, "<html>\n <body> \n");
-	fclose(fileImg);
-
 		// Create 2 windows for main video and graph
 	namedWindow("Graph", CV_WINDOW_NORMAL);
 	namedWindow("Main Video", CV_WINDOW_NORMAL);
@@ -239,21 +234,23 @@ int main(  int argc, char** argv ) {
 
 			// Capture frame to Mat object
 		cap >> frame;
+		if (frame.empty()) { // Check if it is the end of video file
+			cout<<"End of file!"<<endl;
+			break; // exit for loop if end of file is reached
+		}
 
-			// Count objects passing through 3 ROIsin each frame, and print on console the counting number
-		lane1.feedNewframe(frame, frameCount);
-		lane1.countObject(frame, 1, fileImg);
+			// Count objects passing through 3 ROIs in each frame,
+			//		and print on console the counting number
+		lane1.feedNewframe(frame, 1, frameCount, cap);
 		printf("Lane 1 = %d \n", lane1.objectCount);
 
-		lane2.feedNewframe(frame, frameCount);
-		lane2.countObject(frame, 2, fileImg);
+		lane2.feedNewframe(frame, 2, frameCount, cap);
 		printf("Lane 2 = %d \n", lane2.objectCount);
 
-		lane3.feedNewframe(frame, frameCount);
-		lane3.countObject(frame, 3, fileImg);
+		lane3.feedNewframe(frame, 3, frameCount, cap);
 		printf("Lane 3 = %d \n", lane3.objectCount);
 
-			// Create a "drawing" frame
+		// Create a "drawing" frame
 		frame.copyTo(drawFrame);
 
 			// Draw ROI for each lane
